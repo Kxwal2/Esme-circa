@@ -234,7 +234,6 @@ class TermsUpdate(BaseCog):
         await self.loop_fetch_terms.start()
 
     async def cog_unload(self) -> None:
-        await self.loop_fetch_terms.stop()
         await self.webhook_server.stop()
         logging.info("Stopping Terms task: %s.", self.__cog_name__)
         return await super().cog_unload()

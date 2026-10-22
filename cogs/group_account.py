@@ -83,10 +83,14 @@ class AccountCog(BaseCog):
         CONFIG.commands.account_card.cooldown,
         key=lambda i: (i.guild_id, i.user.id)
     )
-    async def account_card(self, interaction: discord.Interaction) -> None:
+    async def account_card(
+        self,
+        interaction: discord.Interaction,
+        member: Optional[discord.Member]
+    ) -> None:
         """Display your character information card."""
         partial_card = Card()
-        await partial_card.card(interaction, None)
+        await partial_card.card(interaction, member)
 
     # Card Application Command
     @app_commands.checks.cooldown(

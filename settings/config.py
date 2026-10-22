@@ -143,6 +143,7 @@ class Commands:
     players_online: CommandSimple
     road_check: CommandSimple
     say: CommandSimple
+    tool_cid: CommandSimple
 
 @dataclasses.dataclass
 class Features:
@@ -237,7 +238,8 @@ class Config:
                 'ping': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'players_online': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'road_check': {'enabled': True, 'cooldown': 0.0, 'permission': 0},
-                'say': {'enabled': True, 'cooldown': 0.0, 'permission': None}
+                'say': {'enabled': True, 'cooldown': 0.0, 'permission': None},
+                'tool_cid': {'enabled': True, 'cooldown': 0.0, 'permission': 0}
             },
             'Features': {
                 'Listeners': {
@@ -490,6 +492,11 @@ class Config:
                     my_json['Commands']['say']['enabled'],
                     my_json['Commands']['say']['cooldown'],
                     my_json['Commands']['say']['permission']
+                ),
+                CommandSimple(
+                    my_json['Commands']['tool_cid']['enabled'],
+                    my_json['Commands']['tool_cid']['cooldown'],
+                    my_json['Commands']['tool_cid']['permission']
                 )
             )
 

@@ -13,6 +13,7 @@ from data import (
     DiscordBuilder
 )
 from core import get_weapon_type_image_url
+from core.cid import encode_cid
 from core.exceptions import (
     CharacterNotSet,
     UserNotBound,
@@ -28,8 +29,12 @@ class Card():
         self.character_builder = CharactersBuilder()
         self.discord_builder = DiscordBuilder()
 
-    async def card(self, interaction: discord.Interaction, member: discord.Member):
-        """Select active character."""
+    async def card(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member
+    ):
+        """Display user card."""
         try:
             if not CONFIG.check_permission(
                 CONFIG.commands.account_card.permission,
@@ -92,13 +97,13 @@ class Card():
                             if elevated
                             else ''
                         ) + re.escape(character.character_name),
-                    description='',
+                    description=f'## {encode_cid(character.character_id)}',
                     color=discord.Color.blue()
                 )
 
                 if character.guild_name:
                     embed.description += (
-                        f'**{character.guild_id} |** '
+                        f'\n**{character.guild_id} |** '
                             if elevated
                             else ''
                     ) + f"**{re.escape(character.guild_name)}**"

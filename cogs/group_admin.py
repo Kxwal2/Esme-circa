@@ -2,17 +2,17 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from settings import CONFIG
 from core import BaseCog
 
 from .partial_admin import (
     CharacterNameSet,
     GuildPoogie,
-    Road
+    Road,
+    ToolCID
 )
 
 class AdminCog(BaseCog):
-    """Cog handling guild applications."""
+    """Cog handling admin tools."""
     def __init__(self, client: commands.Bot):
         self.client = client
 
@@ -27,6 +27,12 @@ class AdminCog(BaseCog):
     )
     group_set = app_commands.Group(
         name="set",
+        parent = group_admin,
+        description="..."
+    )
+
+    group_tools = app_commands.Group(
+        name="tool",
         parent = group_admin,
         description="..."
     )
@@ -81,9 +87,43 @@ class AdminCog(BaseCog):
             guild_id
         )
 
+    @group_tools.command(
+        name="encode_cid",
+        description="Encode into Alphabetical ID."
+    )
+    async def admin_tools_encode_cid(
+        self,
+        interaction: discord.Interaction,
+        character_id: int,
+    ) -> None:
+        """Encode ID."""
+        partial_encode = ToolCID()
+        await partial_encode.tool_encode(
+            interaction,
+            character_id
+        )
+
+    @group_tools.command(
+        name="decode_cid",
+        description="Decode into Integer ID."
+    )
+    async def admin_tools_decode_cid(
+        self,
+        interaction: discord.Interaction,
+        character_id: app_commands.Range[str, 6]
+    ) -> None:
+        """Encode ID."""
+        partial_encode = ToolCID()
+        await partial_encode.tool_decode(
+            interaction,
+            character_id.upper()
+        )
+
     @admin_check_road.error
     @admin_set_poogie.error
     @admin_set_charname.error
+    @admin_tools_encode_cid.error
+    @admin_tools_decode_cid.error
     async def on_admin_error(
         self,
         interaction: discord.Interaction,
@@ -94,5 +134,4 @@ class AdminCog(BaseCog):
 
 async def setup(client:commands.Bot) -> None:
     """Initialize cog."""
-    if CONFIG.features.cogs_groups.group_account.enabled:
-        await client.add_cog(AdminCog(client))
+    await client.add_cog(AdminCog(client))
