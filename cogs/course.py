@@ -55,9 +55,9 @@ class DynamicSelect(discord.ui.Select):
         for row in values:
             rows=rows+f"`{data[int(row)]["label"]}`\n"
             if int(row) > 1:
-                self.my_bin =  self.my_bin[:-int(row)] + '1' + self.my_bin[-int(row)+1:]
+                self.my_bin =  self.my_bin[:-int(row)-1] + '1' + self.my_bin[-int(row):]
             else:
-                self.my_bin =  self.my_bin[:-int(row)] + '1'
+                self.my_bin =  self.my_bin[:-int(row)-1] + '1'
 
         try:
             await self.response(int(self.my_bin, base=2))
@@ -107,7 +107,7 @@ class DynamicSelectView(discord.ui.View):
     async def _close_session(self):
         if self.session:
             # Close Session
-            logging.info("%s", "Poogie Session Closed.")
+            logging.info("%s", "Course Session Closed.")
             await self.session.commit()
             await self.session.close()
 
@@ -204,13 +204,13 @@ class Course(BaseCog):
                                 label=course.name,
                                 value=course.mask,
                                 description=course.description,
-                                default=int(my_bin[-course.mask])
+                                default=int(my_bin[-course.mask-1])
                             )
                         )
-                        if course.mask > 1:
-                            my_bin = my_bin[:-course.mask] + '0' + my_bin[-course.mask+1:]
+                        if course.mask >= 1:
+                            my_bin = my_bin[:-course.mask-1] + '0' + my_bin[-course.mask:]
                         else:
-                            my_bin = my_bin[:-course.mask] + '0'
+                            my_bin = my_bin[:-course.mask-1] + '0'
 
             async def callback(rights: int):
                 if not await self.user_builder.update_user_rights(
