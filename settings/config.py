@@ -8,6 +8,7 @@ import json
 import configparser
 import dataclasses
 import logging
+import sys
 
 @dataclasses.dataclass
 class CommandSimple:
@@ -72,6 +73,9 @@ class General:
     """Class representing config general settings."""
     debug: bool
     log_level: str
+    terms_of_service: str
+    terms_webhook_listen_port: int
+    terms_webhook_secret: str
 
 @dataclasses.dataclass
 class Discord:
@@ -82,6 +86,7 @@ class Discord:
     status_category_id: str
     live_chat_category_id: str
     logs_channel_id: str
+    announcement_channel_id: str
     elevated_users: list
 
 @dataclasses.dataclass
@@ -120,6 +125,7 @@ class Commands:
     account_set_psn: CommandSimple
     account_token_reset: CommandSimple
     account_change_password: ElevatedCommand
+    account_delete: ElevatedCommand
     features: CommandSimple
     guild_application_list: CommandSimple
     guild_application_resolve: CommandSimple
@@ -136,6 +142,8 @@ class Commands:
     ping: CommandSimple
     players_online: CommandSimple
     road_check: CommandSimple
+    say: CommandSimple
+    tool_cid: CommandSimple
 
 @dataclasses.dataclass
 class Features:
@@ -165,7 +173,10 @@ class Config:
         my_json = {
             'General': {
                 'debug': True,
-                'log_level': 'info'
+                'log_level': 'info',
+                'terms_of_service': None,
+                "terms_webhook_listen_port": None,
+                "terms_webhook_secret": None
             },
             'Discord': {
                 'token': None,
@@ -174,6 +185,7 @@ class Config:
                 'status_category_id': None,
                 'live_chat_category_id': None,
                 'logs_channel_id': None,
+                'announcement_channel_id': None,
                 'elevated_users': [
                     [0, []],
                     [1, []],
@@ -201,6 +213,7 @@ class Config:
                 'account_bind_credentials': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_bind_token': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_card': {'enabled': True, 'cooldown': 0.0, 'permission': None, 'admin_permission': 0},
+                'account_character_backup': {'enabled': True, 'cooldown': 0.0, 'hard_cooldown': 30, 'permission': None},
                 'account_character_create': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_character_select': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_course': {'enabled': True, 'cooldown': 0.0, 'permission': None},
@@ -208,6 +221,7 @@ class Config:
                 'account_set_psn': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_token_reset': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'account_change_password': {'enabled': True, 'cooldown': 0.0, 'permission': None, 'admin_permission': 0},
+                'account_delete': {'enabled': True, 'cooldown': 0.0, 'permission': None, 'admin_permission': 0},
                 'features': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'guild_application_list': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'guild_application_resolve': {'enabled': True, 'cooldown': 0.0, 'permission': None},
@@ -223,7 +237,9 @@ class Config:
                 'keyflag': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'ping': {'enabled': True, 'cooldown': 0.0, 'permission': None},
                 'players_online': {'enabled': True, 'cooldown': 0.0, 'permission': None},
-                'road_check': {'enabled': True, 'cooldown': 0.0, 'permission': 0}
+                'road_check': {'enabled': True, 'cooldown': 0.0, 'permission': 0},
+                'say': {'enabled': True, 'cooldown': 0.0, 'permission': None},
+                'tool_cid': {'enabled': True, 'cooldown': 0.0, 'permission': 0}
             },
             'Features': {
                 'Listeners': {
@@ -291,7 +307,10 @@ class Config:
 
             self.general = General(
                 my_json['General']['debug'],
-                my_json['General']['log_level']
+                my_json['General']['log_level'],
+                my_json['General']['terms_of_service'],
+                my_json['General']['terms_webhook_listen_port'],
+                my_json['General']['terms_webhook_secret']
             )
 
             self.discord = Discord(
@@ -301,6 +320,7 @@ class Config:
                 my_json['Discord']['status_category_id'],
                 my_json['Discord']['live_chat_category_id'],
                 my_json['Discord']['logs_channel_id'],
+                my_json['Discord']['announcement_channel_id'],
                 my_json['Discord']['elevated_users']
             )
 
@@ -382,6 +402,12 @@ class Config:
                     my_json['Commands']['account_change_password']['permission'],
                     my_json['Commands']['account_change_password']['admin_permission']
                 ),
+                ElevatedCommand(
+                    my_json['Commands']['account_delete']['enabled'],
+                    my_json['Commands']['account_delete']['cooldown'],
+                    my_json['Commands']['account_delete']['permission'],
+                    my_json['Commands']['account_delete']['admin_permission']
+                ),
                 CommandSimple(
                     my_json['Commands']['features']['enabled'],
                     my_json['Commands']['features']['cooldown'],
@@ -461,6 +487,16 @@ class Config:
                     my_json['Commands']['road_check']['enabled'],
                     my_json['Commands']['road_check']['cooldown'],
                     my_json['Commands']['road_check']['permission']
+                ),
+                CommandSimple(
+                    my_json['Commands']['say']['enabled'],
+                    my_json['Commands']['say']['cooldown'],
+                    my_json['Commands']['say']['permission']
+                ),
+                CommandSimple(
+                    my_json['Commands']['tool_cid']['enabled'],
+                    my_json['Commands']['tool_cid']['cooldown'],
+                    my_json['Commands']['tool_cid']['permission']
                 )
             )
 
@@ -493,13 +529,25 @@ class Config:
                     )
                 ),
                 [
-                    Course(element['name'], element['enabled'], element['description'], element['mask'])
+                    Course(
+                        element['name'],
+                        element['enabled'],
+                        element['description'],
+                        element['mask']
+                    )
                     for element in my_json['Features']['Courses']
                 ]
             )
 
+        except KeyError as e:
+            logging.error("Key not found in config: %s %s %s", type(e), e, traceback.format_exc())
+            sys.exit(1)
+
+        except json.JSONDecodeError as e:
+            logging.error("Failed to decode config: %s %s %s", type(e), e, traceback.format_exc())
+
         except Exception as e:
-            logging.error("Failed to create config: %s %s %s", type(e), e, traceback.format_exc())
+            logging.error("Failed to read config: %s %s %s", type(e), e, traceback.format_exc())
 
     def init_config(self):
         """Initialize config, check if valid config exists."""

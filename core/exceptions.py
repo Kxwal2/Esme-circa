@@ -31,7 +31,7 @@ class OldPasswordIncorrect(Exception):
 class DiscordAlreadyRegistered(Exception):
     """Discord user is already registered in database."""
 
-class DiscordNotRegistered(Exception):
+class UserNotBound(Exception):
     """Discord user is not registered in database."""
 
 class UsernameAlreadyRegistered(Exception):
@@ -116,3 +116,32 @@ class MissingGuildApplications(Exception):
 
 class IncorrectPasswordHash(Exception):
     """Incorrect password hash."""
+
+class EmptyContent(Exception):
+    """Parsed username or message content is empty or consists of special characters in its entirety."""
+
+class HTTPServerUnreachable(Exception):
+    """HTTP Server did not respond."""
+
+class InvalidChannel(Exception):
+    """Command used in invalid channel."""
+
+class TermsRejected(Exception):
+    """Exception raised for custom error scenarios."""
+
+    def __init__(self):
+        self.message = "Terms not accepted."
+        self.readable = (
+            "You have not agreed to **Terms of Service**." +
+            "\nNo further action will be taken." +
+            "\n\nIf you wish to delete your **account bind data** please use `/account delete` command." +
+            "\n\nIn case you want to review these **Terms of Service** again and access bot commands " +
+            "that require binding of an in-game account with a bot, you can do so by using the `/terms` command."
+        )
+        super().__init__(self.message)
+
+class TermsNotFound(Exception):
+    """Could not find terms data."""
+
+class LicenseNotFound(Exception):
+    """Could not find license data."""

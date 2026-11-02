@@ -1,4 +1,5 @@
 """Extension module for AccountCard Cog."""
+import traceback
 import re
 import logging
 
@@ -12,10 +13,12 @@ from data import (
     DiscordBuilder
 )
 from core import get_weapon_type_image_url
+from core.cid import encode_cid
 from core.exceptions import (
     CharacterNotSet,
-    DiscordNotRegistered,
-    MissingPermissions
+    UserNotBound,
+    MissingPermissions,
+    TermsRejected
 )
 
 class Card():
@@ -26,8 +29,12 @@ class Card():
         self.character_builder = CharactersBuilder()
         self.discord_builder = DiscordBuilder()
 
-    async def card(self, interaction: discord.Interaction, member: discord.Member):
-        """Select active character."""
+    async def card(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member
+    ):
+        """Display user card."""
         try:
             if not CONFIG.check_permission(
                 CONFIG.commands.account_card.permission,
@@ -42,11 +49,27 @@ class Card():
             async with async_session() as session:
                 # Check if user is registered.
                 discord_user = await self.discord_builder.select_discord_user(
-                    session, str(interaction.user.id) if not member else str(member.id)
+                    session,
+                    str(interaction.user.id)
+                )
+                if discord_user is None:
+                    raise TermsRejected()
+
+                meta = await self.discord_builder.select_meta(
+                    session,
+                    "terms"
                 )
 
-                if discord_user is None:
-                    raise DiscordNotRegistered(
+                if discord_user.terms != meta['sha']:
+                    raise TermsRejected()
+
+                discord_user = await self.discord_builder.select_discord_user(
+                    session,
+                    str(interaction.user.id) if not member else str(member.id)
+                )
+
+                if discord_user is None or discord_user.user_id is None:
+                    raise UserNotBound(
                         "No account registered for this discord user."
                     )
 
@@ -74,13 +97,13 @@ class Card():
                             if elevated
                             else ''
                         ) + re.escape(character.character_name),
-                    description='',
+                    description=f'## {encode_cid(character.character_id)}',
                     color=discord.Color.blue()
                 )
 
                 if character.guild_name:
                     embed.description += (
-                        f'**{character.guild_id} |** '
+                        f'\n**{character.guild_id} |** '
                             if elevated
                             else ''
                     ) + f"**{re.escape(character.guild_name)}**"
@@ -142,7 +165,7 @@ class Card():
                 )
         except (
             CharacterNotSet,
-            DiscordNotRegistered,
+            UserNotBound,
             MissingPermissions
         ) as e:
             logging.warning("%s: %s", interaction.user.id, e)
@@ -153,4 +176,29 @@ class Card():
                     color=discord.Color.red()
                 ),
                 ephemeral=True
+            )
+
+        except (
+            TermsRejected
+        ) as e:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Card Failed",
+                    description=e.readable,
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+
+        except (
+            Exception
+        ) as e:
+            logging.error("%s: %s %s %s", interaction.user.id, type(e), e, traceback.format_exc())
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="Procesing Failed",
+                    description="Internal Error.",
+                    color=discord.Color.red()
+                ),
+                view=None
             )

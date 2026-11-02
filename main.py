@@ -53,7 +53,6 @@ class MyClient(commands.Bot):
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = False
 client = MyClient(intents=intents)
 
 @client.event

@@ -14,6 +14,7 @@ from .partial_account import (
     CharacterCreate,
     CharacterSelect,
     CharacterBackup,
+    DeleteData,
     PasswordChange,
     PsnClear,
     PsnSet,
@@ -24,6 +25,7 @@ class AccountCog(BaseCog):
     """Cog handling guild applications."""
     def __init__(self, client: commands.Bot):
         self.client = client
+
         self.app_card = app_commands.ContextMenu(
             name='Player Card',
             callback = self.account_card_app,
@@ -37,6 +39,13 @@ class AccountCog(BaseCog):
         )
         self.app_password.error(self.on_account_error)
         self.client.tree.add_command(self.app_password)
+
+        self.app_delete = app_commands.ContextMenu(
+            name='Account Delete',
+            callback = self.account_delete_app,
+        )
+        self.app_delete.error(self.on_account_error)
+        self.client.tree.add_command(self.app_delete)
 
     group_account = app_commands.Group(
         name="account",
@@ -74,10 +83,14 @@ class AccountCog(BaseCog):
         CONFIG.commands.account_card.cooldown,
         key=lambda i: (i.guild_id, i.user.id)
     )
-    async def account_card(self, interaction: discord.Interaction) -> None:
+    async def account_card(
+        self,
+        interaction: discord.Interaction,
+        member: Optional[discord.Member]
+    ) -> None:
         """Display your character information card."""
         partial_card = Card()
-        await partial_card.card(interaction, None)
+        await partial_card.card(interaction, member)
 
     # Card Application Command
     @app_commands.checks.cooldown(
@@ -118,6 +131,32 @@ class AccountCog(BaseCog):
         """Change user password."""
         partial_passchange = PasswordChange()
         await partial_passchange.change_password(interaction, member)
+
+    @group_account.command(name="delete")
+    @app_commands.checks.cooldown(
+        1,
+        CONFIG.commands.account_delete.cooldown,
+        key=lambda i: (i.guild_id, i.user.id)
+    )
+    async def account_delete(
+        self,
+        interaction: discord.Interaction,
+        member: Optional[discord.Member]
+    ) -> None:
+        """Delete bot user data. Defaults to yourself if no member provided."""
+        partial_delete = DeleteData()
+        await partial_delete.delete(interaction, member)
+
+    # Account Delete Application Command
+    async def account_delete_app(
+            self,
+            interaction: discord.Interaction,
+            member: discord.Member
+    ):
+        """Erase user data."""
+        partial_delete = DeleteData()
+        await partial_delete.delete(interaction, member)
+
 
     @group_psn.command(name="set")
     @app_commands.checks.cooldown(

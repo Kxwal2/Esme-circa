@@ -1,4 +1,5 @@
-"""Extension module for example Ping Cog with response interaction."""
+"""Extension module to manage Courses."""
+import traceback
 import logging
 from typing import Callable
 
@@ -11,8 +12,9 @@ from settings import CONFIG
 from core import BaseCog
 from core.exceptions import (
     CoroutineFailed,
-    DiscordNotRegistered,
-    MissingPermissions
+    UserNotBound,
+    MissingPermissions,
+    TermsRejected
 )
 
 from data.connector import CONN
@@ -53,9 +55,9 @@ class DynamicSelect(discord.ui.Select):
         for row in values:
             rows=rows+f"`{data[int(row)]["label"]}`\n"
             if int(row) > 1:
-                self.my_bin =  self.my_bin[:-int(row)] + '1' + self.my_bin[-int(row)+1:]
+                self.my_bin =  self.my_bin[:-int(row)-1] + '1' + self.my_bin[-int(row):]
             else:
-                self.my_bin =  self.my_bin[:-int(row)] + '1'
+                self.my_bin =  self.my_bin[:-int(row)-1] + '1'
 
         try:
             await self.response(int(self.my_bin, base=2))
@@ -105,7 +107,7 @@ class DynamicSelectView(discord.ui.View):
     async def _close_session(self):
         if self.session:
             # Close Session
-            logging.info("%s", "Poogie Session Closed.")
+            logging.info("%s", "Course Session Closed.")
             await self.session.commit()
             await self.session.close()
 
@@ -162,14 +164,29 @@ class Course(BaseCog):
             async with async_session() as session:
                 # Check if user is registered.
                 discord_user = await self.discord_builder.select_discord_user(
-                    session, str(interaction.user.id)
+                    session,
+                    str(interaction.user.id)
                 )
                 if discord_user is None:
-                    raise DiscordNotRegistered(
+                    raise TermsRejected()                
+
+                meta = await self.discord_builder.select_meta(
+                    session,
+                    "terms"
+                )
+
+                if discord_user.terms != meta['sha']:
+                    raise TermsRejected()
+
+                if discord_user.user_id is None:
+                    raise UserNotBound(
                         "No account registered for this discord user."
                     )
 
-                user_rights = await self.user_builder.select_user_rights(session, discord_user.user_id)
+                user_rights = await self.user_builder.select_user_rights(
+                    session,
+                    discord_user.user_id
+                )
                 if not user_rights:
                     raise CoroutineFailed(
                         "Invalid rights."
@@ -187,13 +204,13 @@ class Course(BaseCog):
                                 label=course.name,
                                 value=course.mask,
                                 description=course.description,
-                                default=int(my_bin[-course.mask])
+                                default=int(my_bin[-course.mask-1])
                             )
                         )
-                        if course.mask > 1:
-                            my_bin = my_bin[:-course.mask] + '0' + my_bin[-course.mask+1:]
+                        if course.mask >= 1:
+                            my_bin = my_bin[:-course.mask-1] + '0' + my_bin[-course.mask:]
                         else:
-                            my_bin = my_bin[:-course.mask] + '0'
+                            my_bin = my_bin[:-course.mask-1] + '0'
 
             async def callback(rights: int):
                 if not await self.user_builder.update_user_rights(
@@ -227,6 +244,31 @@ class Course(BaseCog):
                 ephemeral=True
             )
 
+        except (
+            TermsRejected
+        ) as e:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Course Select Failed",
+                    description=e.readable,
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+
+        except (
+            Exception
+        ) as e:
+            logging.error("%s: %s %s %s", interaction.user.id, type(e), e, traceback.format_exc())
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="Procesing Failed",
+                    description="Internal Error.",
+                    color=discord.Color.red()
+                ),
+                view=None
+            )
+
     @course.error
     async def on_course_error(
         self,
@@ -238,5 +280,5 @@ class Course(BaseCog):
 
 async def setup(client:commands.Bot) -> None:
     """Initialize cog."""
-    if CONFIG.commands.ping.enabled:
+    if CONFIG.commands.account_course.enabled:
         await client.add_cog(Course(client))

@@ -13,9 +13,10 @@ from data import (
 from settings import CONFIG
 from core.exceptions import (
     CoroutineFailed,
-    DiscordNotRegistered,
+    UserNotBound,
     IncorrectPasswordHash,
-    MissingPermissions
+    MissingPermissions,
+    TermsRejected
 )
 
 async def m_change_password(
@@ -32,13 +33,9 @@ async def m_change_password(
         async with async_session() as session:
             # Check if user is registered.
             discord_user = await discord_builder.select_discord_user(
-                session, str(interaction.user.id) if not member else str(member.id)
+                session,
+                str(interaction.user.id) if not member else str(member.id)
             )
-
-            if discord_user is None:
-                raise DiscordNotRegistered(
-                    "No account registered for this discord user."
-                )
 
             split_hash = password_hash.split("$")
             if (
@@ -99,6 +96,31 @@ async def m_change_password(
             ephemeral=True
         )
 
+    except (
+        TermsRejected
+    ) as e:
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="Binding Failed",
+                description=e.readable,
+                color=discord.Color.red()
+            ),
+            ephemeral=True
+        )
+
+    except (
+        Exception
+    ) as e:
+        logging.error("%s: %s %s %s", interaction.user.id, type(e), e, traceback.format_exc())
+        await interaction.response.edit_message(
+            embed=discord.Embed(
+                title="Procesing Failed",
+                description="Internal Error.",
+                color=discord.Color.red()
+            ),
+            view=None
+        )
+
 class ModalChangePassword(
     discord.ui.Modal,
     title='Change Password'
@@ -128,7 +150,11 @@ class ModalChangePassword(
             self.password_hash.value
         )
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+    async def on_error(
+        self,
+        interaction: discord.Interaction,
+        error: Exception
+    ) -> None:
         logging.error("%s: %s %s %s", interaction.user.id, type(error), error, traceback.format_exc())
         await interaction.response.send_message(
             embed=discord.Embed(
@@ -147,8 +173,7 @@ class PasswordChange():
     async def change_password(self, interaction: discord.Interaction, member: discord.Member):
         """Change user password."""
         try:
-            logging.info("%s: %s", "Member: ", member)
-            if member == None:
+            if member is None:
                 member = interaction.user
             elevated = CONFIG.check_permission(
                 CONFIG.commands.account_card.admin_permission,
@@ -164,11 +189,47 @@ class PasswordChange():
                 raise MissingPermissions(
                     f"{interaction.user.mention} is missing permissions to use command."
                 )
+
+            # Create session
+            async_session = async_sessionmaker(CONN.engine, expire_on_commit=False)
+            async with async_session() as session:
+                # Check if user is registered.
+                discord_user = await self.discord_builder.select_discord_user(
+                    session,
+                    str(interaction.user.id)
+                )
+
+                if discord_user is None:
+                    raise TermsRejected()
+
+                meta = await self.discord_builder.select_meta(
+                    session,
+                    "terms"
+                )
+
+                if discord_user.terms != meta['sha']:
+                    raise TermsRejected()
+
+                discord_user = await self.discord_builder.select_discord_user(
+                    session,
+                    str(member.id)
+                )
+
+                if discord_user is None or discord_user.user_id is None:
+                    raise UserNotBound(
+                        "No account registered for this discord user."
+                    )
+
+                # Commit
+                await session.commit()
+                await session.close()
+
             await interaction.response.send_modal(
                 ModalChangePassword(self.user_builder, self.discord_builder, member)
             )
 
         except (
+            UserNotBound,
             MissingPermissions
         ) as e:
             logging.warning("%s: %s", interaction.user.id, e)
@@ -179,4 +240,29 @@ class PasswordChange():
                     color=discord.Color.red()
                 ),
                 ephemeral=True
+            )
+
+        except (
+            TermsRejected
+        ) as e:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Password Change Failed",
+                    description=e.readable,
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+
+        except (
+            Exception
+        ) as e:
+            logging.error("%s: %s %s %s", interaction.user.id, type(e), e, traceback.format_exc())
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="Procesing Failed",
+                    description="Internal Error.",
+                    color=discord.Color.red()
+                ),
+                view=None
             )
